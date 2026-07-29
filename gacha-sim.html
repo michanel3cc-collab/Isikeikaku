@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ガチャシミュレータ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bakbak+One&family=M+PLUS+1+Code:wght@400;500;700&family=M+PLUS+1p:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E7F0F8; --card:#FFFFFF; --ink:#243D53; --muted:#7C93A8;
+  --azure:#1B8FF5; --azure-deep:#0B63B8;
+  --gold:#FFC53D; --free:#17C79A;
+  --pu:#9B4DE0;
+  --line:#C6DAEB; --pale:#DCE8F2; --skew:-11deg;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  background-image:
+    radial-gradient(circle at 12% -10%, #FFFFFF 0%, rgba(255,255,255,0) 45%),
+    radial-gradient(circle at 92% 0%, #D6E9FB 0%, rgba(214,233,251,0) 40%);
+  background-attachment:fixed;
+  color:var(--ink); font-family:"M PLUS 1p",system-ui,sans-serif;
+  font-size:15px; line-height:1.75; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1020px;margin:0 auto;padding:26px 20px 32px}
+
+h2{font-family:"M PLUS 1p",sans-serif;font-weight:800;font-size:17px;
+   letter-spacing:.01em;margin:0 0 3px;line-height:1.4}
+.lede{color:var(--muted);margin:0 0 12px;font-size:13px;line-height:1.6}
+section{margin:30px 0 0}
+section:first-of-type{margin:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:3px;
+      box-shadow:0 1px 0 rgba(36,61,83,.05),0 10px 30px -22px rgba(36,61,83,.5)}
+
+button{font:inherit;color:inherit;cursor:pointer}
+.btn{transform:skewX(var(--skew));border:0;background:var(--ink);color:#fff;padding:8px 18px;
+     font-family:"M PLUS 1p";font-weight:700;font-size:12.5px;transition:background .15s, translate .15s}
+.btn > span{display:inline-block;transform:skewX(calc(var(--skew) * -1))}
+.btn:hover{background:var(--azure-deep)}
+.btn:active{translate:0 1px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
+.btn.ghost:hover{background:#fff;box-shadow:inset 0 0 0 2px var(--azure);color:var(--azure-deep)}
+.btn.next{background:var(--free);color:#053B2E}
+.btn.next:hover{background:#0FA37D}
+.btn:focus-visible{outline:3px solid var(--azure);outline-offset:3px}
+.btn[disabled]{opacity:.3;pointer-events:none}
+
+/* ---------- ガチャ帯 ---------- */
+.pulls{padding:18px 22px 16px}
+.banner{padding:0 0 14px;margin:0 0 14px;border-bottom:1px dashed var(--line)}
+.banner:last-of-type{border-bottom:0;padding-bottom:2px;margin-bottom:0}
+.bhead{display:flex;align-items:baseline;gap:10px;margin:0 0 5px;flex-wrap:wrap}
+.tag{transform:skewX(var(--skew));padding:1px 12px;background:var(--muted);color:#fff;
+     font-family:"M PLUS 1 Code",monospace;font-size:11px;font-weight:700;letter-spacing:.08em;
+     transition:background .15s}
+.tag > span{display:inline-block;transform:skewX(calc(var(--skew) * -1))}
+.banner.active .tag{background:var(--azure-deep)}
+.banner.done .tag{background:var(--ink)}
+.bstat{font-family:"M PLUS 1 Code",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.05em}
+.bstat b{color:var(--ink);font-size:13px;font-weight:700}
+.bscore{margin-left:auto;display:flex;gap:13px;font-family:"M PLUS 1 Code",monospace;
+        font-size:10.5px;color:var(--muted)}
+.bscore b{font-size:16px;font-weight:700;color:var(--ink);line-height:1}
+
+.ribbon{position:relative;display:flex;gap:1px;height:34px;
+        background:var(--pale);padding:3px;border-radius:2px;overflow:hidden}
+.banner.active .ribbon{box-shadow:0 0 0 2px var(--azure)}
+.tick{flex:1 1 0;min-width:0;background:#EDF3F9;border-radius:1px;transition:background .12s}
+.tick.free{background:#DFF5EE;box-shadow:inset 0 -3px 0 var(--free)}
+.tick.miss3,.tick.free.miss3{background:var(--gold)}
+.tick.pu,.tick.free.pu{background:var(--pu)}
+.tick.cur{outline:2px solid var(--ink);outline-offset:1px;z-index:2}
+.guide{position:absolute;top:0;bottom:0;width:1px;background:var(--ink);opacity:.25;z-index:3;pointer-events:none}
+.guide::after{content:attr(data-l);position:absolute;top:0;left:3px;font-family:"M PLUS 1 Code",monospace;
+              font-size:8.5px;letter-spacing:.04em;color:var(--ink);opacity:.75;white-space:nowrap}
+
+/* ---------- 状態と操作 ---------- */
+.status{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px;margin:14px 0 0;
+        padding:13px 0 0;border-top:1px solid var(--line)}
+.gauge{font-family:"M PLUS 1 Code",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+.gauge .row{display:flex;align-items:baseline;gap:8px}
+.gauge b{font-family:"Bakbak One",sans-serif;font-weight:400;font-size:26px;color:var(--ink);line-height:1}
+.gauge .of{font-size:12px}
+.bar{height:6px;background:var(--pale);border-radius:3px;overflow:hidden;margin:5px 0 0}
+.bar i{display:block;height:100%;width:0;transition:width .12s}
+.bar.pity i{background:var(--azure)}
+.bar.spend i{background:var(--ink)}
+
+.forecast{margin:12px 0 0;padding:9px 14px;background:#F4F9FD;border-left:3px solid var(--azure);
+  font-family:"M PLUS 1 Code",monospace;font-size:11px;color:var(--muted);letter-spacing:.05em;
+  line-height:1.9}
+.forecast b{font-family:"Bakbak One",sans-serif;font-weight:400;font-size:19px;color:var(--ink);
+  margin:0 2px;letter-spacing:0}
+.forecast .g{color:var(--muted);font-size:10px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 0}
+.controls .seed{margin-left:auto;font-family:"M PLUS 1 Code",monospace;font-size:11px;color:var(--muted)}
+.startc{display:flex;align-items:center;gap:8px;margin-left:4px;
+        font-family:"M PLUS 1 Code",monospace;font-size:11px;color:var(--muted);letter-spacing:.06em}
+.startc input{width:56px;border:0;border-bottom:2px solid var(--line);background:transparent;
+        font-family:"M PLUS 1 Code",monospace;font-size:16px;font-weight:700;color:var(--ink);
+        padding:1px 0;text-align:center;transition:border-color .15s}
+.startc input:focus{border-bottom-color:var(--azure);outline:none}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin:12px 0 0;
+        font-family:"M PLUS 1 Code",monospace}
+.legend i{display:inline-block;width:11px;height:11px;transform:skewX(var(--skew));
+          margin-right:5px;vertical-align:-1px;border-radius:1px}
+.spec{margin:8px 0 0;font-family:"M PLUS 1 Code",monospace;font-size:10.5px;
+      color:var(--muted);letter-spacing:.04em}
+
+/* ---------- 集計 ---------- */
+.rlabel{font-family:"M PLUS 1 Code",monospace;font-size:12px;font-weight:700;
+        letter-spacing:.11em;color:var(--muted);white-space:nowrap}
+.gem{display:grid;grid-template-columns:repeat(3,1fr);background:#F4F9FD;
+     border-bottom:1px solid var(--line)}
+.gemitem{padding:12px 22px 14px;border-right:1px solid var(--line)}
+.gemitem:last-child{border-right:0}
+.gem b{font-family:"Bakbak One",sans-serif;font-weight:400;line-height:.84;letter-spacing:-.02em;
+       font-size:clamp(30px,4.6vw,52px);font-variant-numeric:tabular-nums;color:var(--ink)}
+.runit{font-family:"M PLUS 1 Code",monospace;font-size:12px;color:var(--muted);margin-left:4px}
+.gemsub{display:block;margin:5px 0 0;font-family:"M PLUS 1 Code",monospace;
+        font-size:10px;color:var(--muted);letter-spacing:.04em}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+.cell{padding:14px 20px 16px;border-right:1px solid var(--line)}
+.cell:last-child{border-right:0}
+.cell.on{background:#F2F9FF}
+.clabel{display:block;font-family:"M PLUS 1 Code",monospace;font-size:10.5px;font-weight:700;
+        letter-spacing:.1em;color:var(--muted);margin:0 0 6px}
+.cell.on .clabel{color:var(--azure-deep)}
+.cval{font-family:"Bakbak One",sans-serif;font-weight:400;line-height:.82;letter-spacing:-.03em;
+      font-variant-numeric:tabular-nums;font-size:clamp(46px,8vw,86px);color:var(--azure-deep)}
+.cunit{font-family:"M PLUS 1 Code",monospace;font-size:12px;font-weight:700;
+       color:var(--muted);margin-left:5px}
+.csub{display:block;margin:6px 0 0;font-family:"M PLUS 1 Code",monospace;
+      font-size:10px;color:var(--muted);letter-spacing:.05em}
+
+.totals{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.totals > span{flex:1 1 auto;display:flex;align-items:baseline;gap:7px;padding:9px 20px;
+  border-right:1px solid var(--line);font-family:"M PLUS 1 Code",monospace;
+  font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+.totals > span:last-child{border-right:0}
+.totals em{font-style:normal;font-weight:700}
+.totals b{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-family:"M PLUS 1 Code",monospace;font-size:12px}
+th,td{padding:7px 14px;text-align:right;white-space:nowrap}
+thead th{font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:500;
+         border-bottom:1px solid var(--line);padding-top:11px}
+tbody td:first-child,thead th:first-child{text-align:left;font-weight:700}
+tbody tr{border-bottom:1px solid #EFF5FA}
+tbody tr:last-child{border-bottom:0}
+tbody tr.active td:first-child{color:var(--azure-deep)}
+tbody td.pu{color:var(--azure-deep);font-weight:700}
+
+footer{margin:26px 0 0;padding:14px 0 0;border-top:1px solid var(--line);
+       font-family:"M PLUS 1 Code",monospace;font-size:11px;color:var(--muted);
+       display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+@media (max-width:720px){
+  .ribbon{gap:0;height:30px}
+  .bscore{margin-left:0;gap:11px}
+  .status{grid-template-columns:1fr}
+  .form{margin-left:0;flex-basis:100%}
+  .gem{grid-template-columns:1fr}
+  .gemitem{border-right:0;border-bottom:1px solid var(--line)}
+  .gemitem:last-child{border-bottom:0}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .cell:nth-child(2n){border-right:0}
+  .cell:nth-child(-n+2){border-bottom:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section>
+  <h2>ガチャを引く（4回分）</h2>
+  <p class="lede">1マス＝1連。呼び出しチャージは次のガチャへ持ち越される。緑の下線が無料枠で、チケットを消費せず獲得と同時に消化される。途中で「次のガチャへ」を押すと、残り枚数を使わずにカウントだけ持ったまま次へ進む。</p>
+
+  <div class="card pulls" id="pulls"></div>
+
+  <div class="card pulls" style="border-top:0;margin-top:-1px" id="panel">
+    <div class="status">
+      <div class="gauge">
+        <div class="row">呼び出しチャージ <b id="pityN">0</b><span class="of">/ 200</span>
+          <span id="pityNote"></span></div>
+        <div class="bar pity"><i id="pity"></i></div>
+      </div>
+      <div class="gauge">
+        <div class="row">消費チケット <b id="tix">0</b><span class="of">/ <span id="tixMax">1280</span> 枚</span></div>
+        <div class="bar spend"><i id="meter"></i></div>
+      </div>
+    </div>
+
+    <p class="forecast" id="fc"></p>
+
+    <div class="controls">
+      <button class="btn" id="b1"><span>1連</span></button>
+      <button class="btn" id="b10"><span>10連</span></button>
+      <button class="btn" id="bpu1"><span>1PU出るまで10連</span></button>
+      <button class="btn" id="bpu2"><span>2PU出るまで10連</span></button>
+      <button class="btn next" id="bnext"><span>次のガチャへ →</span></button>
+      <button class="btn ghost" id="bseed"><span>引き直す</span></button>
+      <label class="startc">開始チャージ
+        <input type="number" id="startC" value="0" min="0" step="1"></label>
+      <span class="seed">シード <b id="seedv">—</b></span>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--pu)"></i>PU</span>
+      <span><i style="background:var(--gold)"></i>★3（PU以外）</span>
+      <span><i style="background:#DFF5EE;box-shadow:inset 0 -3px 0 var(--free)"></i>無料枠</span>
+      <span><i style="background:#EDF3F9;box-shadow:inset 0 0 0 1px var(--line)"></i>青封筒</span>
+    </div>
+    <p class="spec" id="spec"></p>
+  </div>
+</section>
+
+<section>
+  <h2>獲得数と消費</h2>
+  <p class="lede">青輝石は1枚120石。神名文字はPU1体につき100個。神名の欠片は青封筒1個あたり3.4個で概算し、★3（PU以外）50個・3体目以降のPU 50個を加算。ガチャごとに別キャラなので3体目の判定もガチャ単位。</p>
+  <div class="card">
+    <div class="gem">
+      <div class="gemitem">
+        <span class="clabel">消費した青輝石</span>
+        <b id="gem">0</b><span class="runit">石</span>
+        <span class="gemsub" id="gemForm">120 石 × 0 枚</span>
+      </div>
+      <div class="gemitem">
+        <span class="clabel">ガチャを回した回数</span>
+        <b id="gPull">0</b><span class="runit">回</span>
+        <span class="gemsub" id="gPullSub">有料 0 ／ 無料 0</span>
+      </div>
+      <div class="gemitem">
+        <span class="clabel">無料で回した回数</span>
+        <b id="gFree">0</b><span class="runit">回</span>
+        <span class="gemsub" id="gFreeSub">全体の 0%</span>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="totals">
+      <span><em>PU 合計</em><b id="sPU">0</b>体</span>
+      <span><em>★3（PU以外）</em><b id="sStar">0</b>体</span>
+      <span><em>神名文字</em><b id="sChar">0</b>個</span>
+      <span><em>神名の欠片</em><b id="sShard">0</b>個</span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>ガチャ</th><th>連数</th><th>無料</th><th>枚数</th><th>青輝石</th>
+          <th>PU</th><th>★3<br>(PU以外)</th><th>神名文字</th><th>神名の欠片</th><th>終了時チャージ</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>1マス = 1連 ／ 1ガチャあたり <span id="tixEach">320</span> 枚（400連）</span>
+  <span>呼び出しチャージはガチャをまたいで継続します</span>
+</footer>
+
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ================= 固定条件 ================= */
+const CFG = {
+  star: 0.03,          // ★3 排出率（PUを含む内数）
+  pu:   0.007,         // PU 排出率
+  tix:  320,           // 1ガチャあたりのチケット枚数（＝400連ぶん）
+  banners: 4,          // ガチャの回数
+  soft: 100,           // ソフト天井（呼び出しチャージがこの数に達した次の連）
+  softP:0.5,           // ソフト天井でのPU率（外れは★3確定）
+  hard: 200,           // 確定天井
+  freeAfter: [70,130,150,170,270,330,350,370],  // この連の直後から
+  freeLen: 10                                    // この数だけ無料（ガチャごとにリセット）
+};
+const GEM_PER_TICKET = 120;   // チケット1枚あたりの青輝石
+const CHAR_PER_PU    = 100;   // PU1体あたりの神名文字
+const SHARD_MISS     = 3.4;   // 青封筒1個あたりの神名の欠片（概算）
+const SHARD_STAR     = 50;    // ★3（PU以外）1体あたり
+const SHARD_DUPE     = 50;    // 3体目以降のPU 1体あたり
+const PU_FREE        = 2;     // ここまでのPUは欠片に変換されない（ガチャごと）
+
+/* n連目（1始まり）が無料枠か。70 → 71〜80連目が無料 */
+const isFree = n => CFG.freeAfter.some(s => n > s && n <= s + CFG.freeLen);
+
+/* t枚使い終わった時点の連数（直後に続く無料枠は消化済みとする） */
+function pullAtTicket(t){
+  let k = 0, n = 0;
+  while (k < t){ n++; if (!isFree(n)) k++; }
+  while (isFree(n+1)) n++;
+  return n;
+}
+const PULLS = pullAtTicket(CFG.tix);          // 1ガチャの最大連数
+const FREES = (() => { let f=0; for (let n=1;n<=PULLS;n++) if (isFree(n)) f++; return f; })();
+
+function startCount(){
+  const v = Math.round(parseFloat($("#startC").value));
+  return isFinite(v) ? Math.max(0, Math.min(CFG.hard-1, v)) : 0;
+}
+
+/* 現在のチャージのまま次のガチャへ移った場合、
+   1体目・2体目のPUを引くまでに必要なチケット枚数の期待値 */
+const fcCache = new Map();
+function forecast(c0){
+  if (fcCache.has(c0)) return fcCache.get(c0);
+  const H = CFG.hard;
+  let dp0 = new Float64Array(H), dp1 = new Float64Array(H);   // まだ0体 / 1体
+  dp0[c0] = 1;
+  let e1 = 0, e2 = 0;
+  for (let n=1; n<=600; n++){
+    let p0=0, p1=0;
+    for (let c=0;c<H;c++){ p0 += dp0[c]; p1 += dp1[c]; }
+    if (p0 + p1 < 1e-13) break;
+    const cost = isFree(n) ? 0 : 1;
+    e1 += cost * p0;            // 1体目に届くまで払う
+    e2 += cost * (p0 + p1);     // 2体目に届くまで払う
+    const n0 = new Float64Array(H), n1 = new Float64Array(H);
+    for (let c=0;c<H;c++){
+      const thr = c === CFG.soft-1 ? CFG.softP : (c === H-1 ? 1 : CFG.pu);
+      const nx = Math.min(c+1, H-1);
+      const v0 = dp0[c], v1 = dp1[c];
+      if (v0){ n1[0] += v0*thr; if (thr < 1) n0[nx] += v0*(1-thr); }
+      if (v1 && thr < 1) n1[nx] += v1*(1-thr);   // 2体目を引いたらそこで終了
+    }
+    dp0 = n0; dp1 = n1;
+  }
+  const r = {e1, e2};
+  fcCache.set(c0, r);
+  return r;
+}
+
+let seed, st, timer = null;
+const mulberry32 = a => () => {
+  a |= 0; a = a + 0x6D2B79F5 | 0;
+  let t = Math.imul(a ^ a>>>15, 1|a); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t;
+  return ((t ^ t>>>14) >>> 0) / 4294967296;
+};
+
+function reset(newSeed){
+  if (timer){ cancelAnimationFrame(timer); timer = null; }
+  if (newSeed || seed === undefined) seed = (Math.random()*1e6)|0;
+
+  const host = $("#pulls"); host.innerHTML = "";
+  const stats = $("#stats"); stats.innerHTML = "";
+  const banners = [];
+  for (let i=0;i<CFG.banners;i++){
+    const wrap = document.createElement("div");
+    wrap.className = "banner" + (i===0 ? " active" : "");
+    wrap.innerHTML =
+      `<div class="bhead">
+         <span class="tag"><span>ガチャ${i+1}</span></span>
+         <span class="bstat"><b class="bp">0</b> 連 ／ <b class="bt">0</b> 枚</span>
+         <span class="bscore"><span><b class="bu">0</b>PU</span><span><b class="bs">0</b>★3</span></span>
+       </div>
+       <div class="ribbon"></div>`;
+    const rib = wrap.querySelector(".ribbon");
+    const f = document.createDocumentFragment(), ticks = [];
+    for (let n=1;n<=PULLS;n++){
+      const d = document.createElement("div");
+      d.className = isFree(n) ? "tick free" : "tick";
+      f.appendChild(d); ticks.push(d);
+    }
+    rib.appendChild(f);
+    const step = CFG.tix <= 250 ? 50 : 100;
+    for (let t=step; t<CFG.tix; t+=step){
+      const g = document.createElement("div"); g.className = "guide";
+      g.style.left = (pullAtTicket(t)/PULLS*100)+"%"; g.dataset.l = t+"枚";
+      rib.appendChild(g);
+    }
+    host.appendChild(wrap);
+
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML = `<span class="clabel">ガチャ${i+1}</span>`
+                   + `<span class="cval">0</span><span class="cunit">PU</span>`
+                   + `<span class="csub">0 連 ／ 0 枚</span>`;
+    stats.appendChild(cell);
+
+    banners.push({el:wrap, ticks, pull:0, tix:0, pu:0, star:0, endC:null,
+                  bp:wrap.querySelector(".bp"), bt:wrap.querySelector(".bt"),
+                  bu:wrap.querySelector(".bu"), bs:wrap.querySelector(".bs"),
+                  cell, cval:cell.querySelector(".cval"), csub:cell.querySelector(".csub")});
+  }
+
+  st = {banners, cur:0, rng: mulberry32(seed), c: startCount()};
+
+  $("#seedv").textContent = seed;
+  $("#startC").max = CFG.hard - 1;
+  $("#tixMax").textContent = CFG.tix * CFG.banners;
+  $("#tixEach").textContent = CFG.tix;
+  $("#spec").textContent = `1ガチャ = 最大 ${PULLS} 連（有料 ${CFG.tix}・無料 ${FREES}）　無料枠：` +
+    CFG.freeAfter.map(s => `${s+1}–${s+CFG.freeLen}`).join(" ／ ") + " 連目";
+  paint();
+}
+
+/* 現在のガチャでチケット1枚ぶん進める。獲得した無料枠はその場で消化する */
+function spendOne(){
+  const b = st.banners[st.cur];
+  if (!b || b.tix >= CFG.tix) return false;
+  b.tix++;
+  const p = CFG;
+
+  const draw = n => {
+    const free = isFree(n), base = free ? "tick free" : "tick";
+    const t = b.ticks[n-1], u = st.rng();
+    let thr = p.pu, sure3 = false;
+    if (st.c === p.soft-1){ thr = p.softP; sure3 = true; }   // 外れても★3は確定
+    else if (st.c === p.hard-1) thr = 1;
+    if (u < thr){ t.className = base+" pu"; b.pu++; st.c = 0; }
+    else if (sure3 || u < p.star){ t.className = base+" miss3"; b.star++; st.c++; }
+    else { t.className = base; st.c++; }
+  };
+  const drain = () => { while (b.pull < PULLS && isFree(b.pull+1)) draw(++b.pull); };
+
+  drain();
+  if (b.pull < PULLS) draw(++b.pull);
+  drain();
+  return true;
+}
+
+function nextBanner(){
+  if (timer) return;
+  const b = st.banners[st.cur];
+  if (b) b.endC = st.c;
+  if (st.cur < CFG.banners - 1){ st.cur++; paint(); }
+}
+
+const shardOf = b => {
+  const miss = b.pull - b.star - b.pu, s3 = b.star, dupe = Math.max(0, b.pu - PU_FREE);
+  return SHARD_MISS*miss + SHARD_STAR*s3 + SHARD_DUPE*dupe;
+};
+const num = v => (Math.round(v*10)/10).toLocaleString("ja-JP");
+
+function paint(){
+  let tPull=0, tFree=0, tTix=0, tPU=0, tStar=0, tShard=0;
+  let rows = "";
+
+  st.banners.forEach((b,i) => {
+    const done = b.tix >= CFG.tix || (b.endC !== null);
+    b.el.classList.toggle("active", i === st.cur);
+    b.el.classList.toggle("done", done && i !== st.cur);
+    b.bp.textContent = b.pull; b.bt.textContent = b.tix;
+    b.bu.textContent = b.pu;   b.bs.textContent = b.star;
+    b.ticks.forEach(t => t.classList.remove("cur"));
+    if (i === st.cur && b.pull > 0) b.ticks[b.pull-1].classList.add("cur");
+    b.cval.textContent = b.pu;
+    b.csub.textContent = `${b.pull} 連 ／ ${b.tix} 枚`;
+    b.cell.classList.toggle("on", i === st.cur);
+
+    let free = 0; for (let n=1;n<=b.pull;n++) if (isFree(n)) free++;
+    const sh = shardOf(b);
+    tPull+=b.pull; tFree+=free; tTix+=b.tix; tPU+=b.pu; tStar+=b.star; tShard+=sh;
+
+    const endC = (i === st.cur) ? st.c : (b.endC !== null ? b.endC : (b.pull ? st.c : "—"));
+    rows += `<tr class="${i===st.cur?"active":""}">`
+          + `<td>ガチャ${i+1}</td><td>${b.pull}</td><td>${free}</td><td>${b.tix}</td>`
+          + `<td>${(b.tix*GEM_PER_TICKET).toLocaleString("ja-JP")}</td>`
+          + `<td class="pu">${b.pu}</td><td>${b.star}</td>`
+          + `<td>${(b.pu*CHAR_PER_PU).toLocaleString("ja-JP")}</td><td>${num(sh)}</td>`
+          + `<td>${endC}</td></tr>`;
+  });
+
+  rows += `<tr style="background:#F4F9FD;font-weight:700">`
+        + `<td>合計</td><td>${tPull}</td><td>${tFree}</td><td>${tTix}</td>`
+        + `<td>${(tTix*GEM_PER_TICKET).toLocaleString("ja-JP")}</td>`
+        + `<td class="pu">${tPU}</td><td>${tStar}</td>`
+        + `<td>${(tPU*CHAR_PER_PU).toLocaleString("ja-JP")}</td><td>${num(tShard)}</td>`
+        + `<td>${st.c}</td></tr>`;
+  $("#tbody").innerHTML = rows;
+
+  const maxTix = CFG.tix * CFG.banners;
+  $("#tix").textContent = tTix;
+  $("#meter").style.width = (tTix/maxTix*100)+"%";
+  $("#pity").style.width = Math.min(100, st.c/CFG.hard*100)+"%";
+  $("#pityN").textContent = st.c;
+  $("#pityNote").textContent =
+    st.c >= CFG.hard-1 ? "／ 次は確定" :
+    st.c === CFG.soft-1 ? "／ 次は50%" :
+    st.c < CFG.soft-1 ? `／ 50%まであと ${CFG.soft-1-st.c}` : `／ 確定まであと ${CFG.hard-1-st.c}`;
+
+  const fc = forecast(st.c);
+  const jp = v => Math.round(v).toLocaleString("ja-JP");
+  $("#fc").innerHTML =
+    `このチャージのまま次のガチャへ移ると、平均 <b>${fc.e1.toFixed(1)}</b> 枚で 1PU`
+  + `<span class="g">（${jp(fc.e1*GEM_PER_TICKET)} 石）</span>、`
+  + `平均 <b>${fc.e2.toFixed(1)}</b> 枚で 2PU`
+  + `<span class="g">（${jp(fc.e2*GEM_PER_TICKET)} 石）</span>`;
+
+  const gems = GEM_PER_TICKET * tTix;
+  $("#gem").textContent = gems.toLocaleString("ja-JP");
+  $("#gemForm").textContent = `${GEM_PER_TICKET} 石 × ${tTix} 枚`;
+  $("#gPull").textContent = tPull.toLocaleString("ja-JP");
+  $("#gPullSub").textContent = `有料 ${tPull-tFree} ／ 無料 ${tFree}`;
+  $("#gFree").textContent = tFree.toLocaleString("ja-JP");
+  $("#gFreeSub").textContent = tPull ? `全体の ${(tFree/tPull*100).toFixed(1)}%` : "全体の 0%";
+  $("#sPU").textContent = tPU;
+  $("#sStar").textContent = tStar;
+  $("#sChar").textContent = (tPU*CHAR_PER_PU).toLocaleString("ja-JP");
+  $("#sShard").textContent = num(tShard);
+
+  const b = st.banners[st.cur];
+  const bDone = !b || b.tix >= CFG.tix;
+  ["#b1","#b10"].forEach(id => $(id).toggleAttribute("disabled", bDone));
+  $("#bpu1").toggleAttribute("disabled", bDone || (b && b.pu >= 1));
+  $("#bpu2").toggleAttribute("disabled", bDone || (b && b.pu >= 2));
+  $("#bnext").toggleAttribute("disabled", st.cur >= CFG.banners-1);
+}
+
+function run(tickets, stop, chunk){
+  if (timer) return;
+  chunk = chunk || 1;
+  let since = 0;
+  // chunk 枚ごとに停止条件を確認する（10連単位なら途中では止まらない）
+  const one = () => {
+    if (!spendOne()) return false;
+    if (++since >= chunk){ since = 0; if (stop && stop()) return false; }
+    return true;
+  };
+  if (reduce){
+    for (let i=0;i<tickets;i++) if (!one()) break;
+    paint(); return;
+  }
+  let left = tickets;
+  const step = () => {
+    const per = left > 40 ? 5 : 1;
+    for (let i=0;i<per && left>0;i++){ left--; if (!one()){ left = 0; break; } }
+    paint();
+    timer = left > 0 ? requestAnimationFrame(step) : null;
+  };
+  timer = requestAnimationFrame(step);
+}
+
+/* このガチャで PU が target 体になるまで10連ずつ回す（判定は10連ごと） */
+function runToPU(target){
+  const b = st.banners[st.cur];
+  if (!b || b.pu >= target) return;
+  run(CFG.tix - b.tix, () => b.pu >= target, 10);
+}
+
+$("#b1").onclick    = () => run(1);
+$("#b10").onclick   = () => run(10);
+$("#bpu1").onclick  = () => runToPU(1);
+$("#bpu2").onclick  = () => runToPU(2);
+$("#bnext").onclick = () => nextBanner();
+$("#bseed").onclick = () => reset(true);
+
+let deb;
+$("#startC").addEventListener("input", () => {
+  clearTimeout(deb); deb = setTimeout(() => reset(), 250);
+});
+
+reset();
+</script>
+</body>
+</html>
