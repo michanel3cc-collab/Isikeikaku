@@ -96,6 +96,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .forecast b{font-family:"Bakbak One",sans-serif;font-weight:400;font-size:19px;color:var(--ink);
   margin:0 2px;letter-spacing:0}
 .forecast .g{color:var(--muted);font-size:10px}
+.forecast .ln{display:block}
 .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0 0}
 .controls .seed{margin-left:auto;font-family:"M PLUS 1 Code",monospace;font-size:11px;color:var(--muted)}
 .startc{display:flex;align-items:center;gap:8px;margin-left:4px;
@@ -340,6 +341,33 @@ function forecast(c0){
   return r;
 }
 
+/* 現在のチャージから10連引いたときの取得数の確率 */
+const tenCache = new Map();
+function tenPull(c0, pulls){
+  pulls = pulls || 10;
+  const key = c0 + ":" + pulls;
+  if (tenCache.has(key)) return tenCache.get(key);
+  const H = CFG.hard;
+  let dp = [new Float64Array(H), new Float64Array(H), new Float64Array(H)];  // 0体/1体/2体以上
+  dp[0][c0] = 1;
+  for (let i=0;i<pulls;i++){
+    const nd = [new Float64Array(H), new Float64Array(H), new Float64Array(H)];
+    for (let k=0;k<3;k++) for (let c=0;c<H;c++){
+      const v = dp[k][c]; if (!v) continue;
+      const thr = c === CFG.soft-1 ? CFG.softP : (c === H-1 ? 1 : CFG.pu);
+      const nx = Math.min(c+1, H-1);
+      nd[Math.min(k+1,2)][0] += v*thr;
+      if (thr < 1) nd[k][nx] += v*(1-thr);
+    }
+    dp = nd;
+  }
+  const sum = a => { let t=0; for (let i=0;i<a.length;i++) t+=a[i]; return t; };
+  const p1 = sum(dp[1]), p2 = sum(dp[2]);
+  const r = {ge1: p1+p2, ge2: p2};
+  tenCache.set(key, r);
+  return r;
+}
+
 let seed, st, timer = null;
 const mulberry32 = a => () => {
   a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -489,13 +517,16 @@ function paint(){
     st.c === CFG.soft-1 ? "／ 次は50%" :
     st.c < CFG.soft-1 ? `／ 50%まであと ${CFG.soft-1-st.c}` : `／ 確定まであと ${CFG.hard-1-st.c}`;
 
-  const fc = forecast(st.c);
+  const fc = forecast(st.c), tp = tenPull(st.c);
   const jp = v => Math.round(v).toLocaleString("ja-JP");
+  const pc = v => (v*100).toFixed(v < 0.1 ? 2 : 1) + "%";
   $("#fc").innerHTML =
-    `このチャージのまま次のガチャへ移ると、平均 <b>${fc.e1.toFixed(1)}</b> 枚で 1PU`
+    `<span class="ln">今 10連 回すと、<b>${pc(tp.ge2)}</b> で PU 2個以上`
+  + `<span class="g">（1個以上なら ${pc(tp.ge1)}）</span></span>`
+  + `<span class="ln">このチャージのまま次のガチャへ移ると、平均 <b>${fc.e1.toFixed(1)}</b> 枚で 1PU`
   + `<span class="g">（${jp(fc.e1*GEM_PER_TICKET)} 石）</span>、`
   + `平均 <b>${fc.e2.toFixed(1)}</b> 枚で 2PU`
-  + `<span class="g">（${jp(fc.e2*GEM_PER_TICKET)} 石）</span>`;
+  + `<span class="g">（${jp(fc.e2*GEM_PER_TICKET)} 石）</span></span>`;
 
   const gems = GEM_PER_TICKET * tTix;
   $("#gem").textContent = gems.toLocaleString("ja-JP");
